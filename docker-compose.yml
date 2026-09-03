@@ -1,16 +1,51 @@
 services:
 
-  postgres:
+  # =====================================================
+  # INFRASTRUCTURE
+  # =====================================================
+
+  inventory-postgres:
     image: postgres:16-alpine
-    container_name: eventshop-postgres
+    container_name: eventshop-inventory-postgres
     environment:
       POSTGRES_USER: eventshop
       POSTGRES_PASSWORD: eventshop
       POSTGRES_DB: eventshop
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - inventory_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U eventshop -d eventshop"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
+  payment-postgres:
+    image: postgres:16-alpine
+    container_name: eventshop-payment-postgres
+    environment:
+      POSTGRES_USER: eventshop
+      POSTGRES_PASSWORD: eventshop
+      POSTGRES_DB: eventshop
+    ports:
+      - "5433:5432"
+    volumes:
+      - payment_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U eventshop -d eventshop"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 
   redis:
@@ -18,6 +53,16 @@ services:
     container_name: eventshop-redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "ping"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 
   rabbitmq:
@@ -29,7 +74,22 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "rabbitmq-diagnostics",
+          "-q",
+          "ping"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
+
+  # =====================================================
+  # ORDER SERVICE
+  # =====================================================
 
   order-service:
     build:
@@ -42,9 +102,15 @@ services:
     ports:
       - "3001:3001"
     depends_on:
-      - rabbitmq
-      - redis
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
+
+  # =====================================================
+  # INVENTORY SERVICE
+  # =====================================================
 
   inventory-service:
     build:
@@ -54,14 +120,21 @@ services:
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      DATABASE_URL: postgresql://eventshop:eventshop@postgres:5432/eventshop
+      DATABASE_URL: postgresql://eventshop:eventshop@inventory-postgres:5432/eventshop
     ports:
       - "3002:3002"
     depends_on:
-      - postgres
-      - rabbitmq
-      - redis
+      inventory-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
+
+  # =====================================================
+  # PAYMENT SERVICE
+  # =====================================================
 
   payment-service:
     build:
@@ -69,10 +142,17 @@ services:
     container_name: eventshop-payment-service
     environment:
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
-      DATABASE_URL: postgresql://eventshop:eventshop@postgres:5432/eventshop
+      DATABASE_URL: postgresql://eventshop:eventshop@payment-postgres:5432/eventshop
     depends_on:
-      - postgres
-      - rabbitmq
+      payment-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+
+  # =====================================================
+  # NOTIFICATION SERVICE
+  # =====================================================
 
   notification-service:
     build:
@@ -81,8 +161,13 @@ services:
     environment:
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
 
+
+  # =====================================================
+  # API GATEWAY
+  # =====================================================
 
   api-gateway:
     build:
@@ -92,13 +177,21 @@ services:
       PORT: 4000
       ORDER_SERVICE_URL: http://order-service:3001
       INVENTORY_SERVICE_URL: http://inventory-service:3002
-      PAYMENT_SERVICE_URL: http://payment-service:3003
     ports:
       - "4000:4000"
     depends_on:
-      - order-service
-      - inventory-service
+      order-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
 
+
+# =======================================================
+# VOLUMES
+# =======================================================
 
 volumes:
-  postgres_data:
+
+  inventory_postgres_data:
+
+  payment_postgres_data:
