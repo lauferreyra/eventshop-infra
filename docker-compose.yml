@@ -4,6 +4,27 @@ services:
   # INFRASTRUCTURE
   # =====================================================
 
+  order-postgres:
+    image: postgres:16-alpine
+    container_name: eventshop-order-postgres
+    environment:
+      POSTGRES_USER: eventshop
+      POSTGRES_PASSWORD: eventshop
+      POSTGRES_DB: eventshop
+    ports:
+      - "5435:5432"
+    volumes:
+      - order_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U eventshop -d eventshop"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   inventory-postgres:
     image: postgres:16-alpine
     container_name: eventshop-inventory-postgres
@@ -102,6 +123,8 @@ services:
     ports:
       - "3001:3001"
     depends_on:
+      order-postgres: 
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:
@@ -195,3 +218,5 @@ volumes:
   inventory_postgres_data:
 
   payment_postgres_data:
+
+  order_postgres_data:
