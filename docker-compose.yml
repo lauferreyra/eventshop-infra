@@ -120,6 +120,7 @@ services:
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      DATABASE_URL: postgresql://eventshop:eventshop@order-postgres:5432/eventshop
     ports:
       - "3001:3001"
     depends_on:
