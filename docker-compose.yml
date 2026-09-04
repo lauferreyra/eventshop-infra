@@ -209,7 +209,17 @@ services:
       inventory-service:
         condition: service_started
 
-
+  eventshop-web:
+    build:
+      context: ../eventshop-web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000
+    container_name: eventshop-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
 # =======================================================
 # VOLUMES
 # =======================================================
